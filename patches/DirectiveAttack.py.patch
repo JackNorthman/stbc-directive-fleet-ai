@@ -1,0 +1,86 @@
+--- a/scripts/AI/Compound/DirectiveAttack.py
++++ b/scripts/AI/Compound/DirectiveAttack.py
+@@ -1,3 +1,29 @@
++# DirectiveAttack - Directive Fleet doctrine, forked from MultiAttack 2026-09-02.
++#
++# Based on AI/Compound/MultiAttack.py from Star Trek: Bridge Commander,
++# (c) Totally Games / Activision.  This header and six changed values are new;
++# everything else is Totally Games' code and remains theirs.
++#
++# Stock MultiAttack has three faults, all observed live in a DS9Wings mirror:
++#
++#   1. It stops closing at 500 (ConditionInRange + SetInterceptDistance) while
++#      DS9Wings' 36 beams reach only 250.  It parks at double its own main
++#      battery's range and fights with a quarter of its guns.
++#   2. Its whole movement chain sits in a SequenceAI with SetResetIfInterrupted(1),
++#      so incoming fire throws it back to child one - the gunnery block - and it
++#      never reaches the movement slice at all.  Under sustained fire it stops
++#      manoeuvring entirely.
++#   3. Gunnery and movement are SERIAL children of one sequence on a 4s/1s split,
++#      so it can never shoot and move at once and only manoeuvres 20% of the time.
++#      Whether two such ships fight evenly is a coin-flip on cycle phase, and the
++#      loser of that coin-flip is locked out permanently: it stops firing, its
++#      shields collapse, and the resulting interrupts keep it reset forever.
++#
++# Fixes here: close to 220 (inside the beams), never reset on interrupt, and an
++# even 2s/2s slice.  Structural fix - firing from a PreprocessingAI wrapped round
++# the movement, the way FedAttack does it - is deliberately NOT attempted; that is
++# a rewrite, not a tune.  Stock MultiAttack is left alone for its other 21 hulls.
++
+ 	######### AI Builder Begin #########
+ ## BUILDER AI
+ ##  This AI file has been mauled by the MakeBuilderAI script.
+@@ -69,7 +95,7 @@
+ 	# Creating ConditionalAI Wait3Seconds at (520, 351)
+ 	## Conditions:
+ 	#### Condition 3Seconds
+-	p3Seconds = App.ConditionScript_Create("Conditions.ConditionTimer", "ConditionTimer", 4,1)
++	p3Seconds = App.ConditionScript_Create("Conditions.ConditionTimer", "ConditionTimer", 2,1)
+ 	## Evaluation function:
+ 	def EvalFunc(b3Seconds):
+ 		ACTIVE = App.ArtificialIntelligence.US_ACTIVE
+@@ -141,7 +167,7 @@
+ 	pIntercept.SetInterruptable(1)
+ 	pScript = pIntercept.GetScriptInstance()
+ 	pScript.SetTargetObjectName(sInitialTarget)
+-	pScript.SetInterceptDistance(500)
++	pScript.SetInterceptDistance(220)
+ 	# Done creating PlainAI Intercept
+ 	#########################################
+ 	######### AI Builder Begin #########
+@@ -154,7 +180,7 @@
+ 	# Creating ConditionalAI TooFar at (1088, 278)
+ 	## Conditions:
+ 	#### Condition Range
+-	pRange = App.ConditionScript_Create("Conditions.ConditionInRange", "ConditionInRange", 500, sInitialTarget, pShip.GetName())
++	pRange = App.ConditionScript_Create("Conditions.ConditionInRange", "ConditionInRange", 220, sInitialTarget, pShip.GetName())
+ 	#### Condition Warp
+ 	pWarp = App.ConditionScript_Create("Conditions.ConditionWarpingToSet", "ConditionWarpingToSet", sInitialTarget)
+ 	## Evaluation function:
+@@ -200,7 +226,7 @@
+ 	pSequence_2 = App.SequenceAI_Create(pShip, "Sequence_2")
+ 	pSequence_2.SetInterruptable(1)
+ 	pSequence_2.SetLoopCount(-1)
+-	pSequence_2.SetResetIfInterrupted(1)
++	pSequence_2.SetResetIfInterrupted(0)
+ 	pSequence_2.SetDoubleCheckAllDone(1)
+ 	pSequence_2.SetSkipDormant(1)
+ 	# SeqBlock is at (987, 285)
+@@ -256,7 +282,7 @@
+ 	# Creating ConditionalAI Wait1Second at (617, 276)
+ 	## Conditions:
+ 	#### Condition 1Second
+-	p1Second = App.ConditionScript_Create("Conditions.ConditionTimer", "ConditionTimer", 1,1)
++	p1Second = App.ConditionScript_Create("Conditions.ConditionTimer", "ConditionTimer", 2,1)
+ 	## Evaluation function:
+ 	def EvalFunc(b1Second):
+ 		ACTIVE = App.ArtificialIntelligence.US_ACTIVE
+@@ -284,7 +310,7 @@
+ 	pSequence = App.SequenceAI_Create(pShip, "Sequence")
+ 	pSequence.SetInterruptable(1)
+ 	pSequence.SetLoopCount(-1)
+-	pSequence.SetResetIfInterrupted(1)
++	pSequence.SetResetIfInterrupted(0)
+ 	pSequence.SetDoubleCheckAllDone(1)
+ 	pSequence.SetSkipDormant(1)
+ 	# SeqBlock is at (546, 283)

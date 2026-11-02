@@ -1,0 +1,3 @@
+# The game's scripts are CRLF, so the patches' content lines are too.
+# Keep git from normalising them or the patches stop applying.
+*.patch -text

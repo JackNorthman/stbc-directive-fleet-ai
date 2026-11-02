@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# extract_ships.py output (generated from your own install - never commit it)
+tools/data/
+
+# Never commit game or mod files
+*.nif
+*.NIF
+*.tga
+*.TGA
+*.mp3
+*.wav
+*.tgl
+*.TGL
+*.lip
+*.LIP
+scripts/
+
+# patch leftovers and backups
+*.orig
+*.rej
+*.bak
+
+# OS clutter
+.DS_Store
+Thumbs.db
+desktop.ini

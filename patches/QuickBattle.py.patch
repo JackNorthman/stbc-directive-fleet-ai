@@ -1,0 +1,778 @@
+--- a/scripts/QuickBattle/QuickBattle.py
++++ b/scripts/QuickBattle/QuickBattle.py
+@@ -51,6 +51,13 @@
+ SUB_PANE_WIDTH				= 0.9400000
+ SUB_PANE_HEIGHT				= 0.8400000
+ 
++# Ship-list font (2026-10-24): smaller side-selector lists so every option
++# fits on screen.  Both ship lists were built at the dialog's small
++# font, Crillee 15 at 1920x1080, which showed ~19 rows.  Crillee is a bitmap
++# font registered at 5/6/9/12/15 only (Icons/FontsAndIcons), so pick from
++# those.  Indexed by MainMenu.mainmenu.g_iRes like the stock size tables.
++SHIP_LIST_FONT_SIZE			= [6, 6, 6, 9, 9]
++
+ SHIP_MENU_X_POS				= 0.0000000
+ SHIP_MENU_Y_POS				= 0.0000000
+ SHIP_MENU_WIDTH				= 0.2300000
+@@ -72,14 +79,22 @@
+ SHIPS_TEXT_HEIGHT			= 0.2850000
+ 
+ ADD_FRIEND_BUTTON_X_POS			= 0.2400000
++# 2026-10-24: the Add-as buttons were 0.12 tall each, which
++# stacked to 0.955 in a 0.84 pane, so Neutral fell off the bottom.  Now 0.05
++# each with a 0.01 gap: all three end at 0.755.
+ ADD_FRIEND_BUTTON_Y_POS			= 0.5850000
+ ADD_FRIEND_BUTTON_WIDTH			= 0.2600000
+-ADD_FRIEND_BUTTON_HEIGHT		= 0.1200000
++ADD_FRIEND_BUTTON_HEIGHT		= 0.0500000
+ 
+ ADD_ENEMY_BUTTON_X_POS			= 0.2400000
+-ADD_ENEMY_BUTTON_Y_POS			= 0.7100000
++ADD_ENEMY_BUTTON_Y_POS			= 0.6450000
+ ADD_ENEMY_BUTTON_WIDTH			= 0.2600000
+-ADD_ENEMY_BUTTON_HEIGHT			= 0.1200000
++ADD_ENEMY_BUTTON_HEIGHT			= 0.0500000
++
++ADD_NEUTRAL_BUTTON_X_POS		= 0.2400000
++ADD_NEUTRAL_BUTTON_Y_POS		= 0.7050000
++ADD_NEUTRAL_BUTTON_WIDTH		= 0.2600000
++ADD_NEUTRAL_BUTTON_HEIGHT		= 0.0500000
+ 
+ AI_MENU_X_POS				= 0.2400000
+ AI_MENU_Y_POS				= 0.9990000
+@@ -141,6 +156,7 @@
+ ET_SELECT_AI				= 0
+ ET_ADD_AS_FRIEND			= 0
+ ET_ADD_AS_ENEMY				= 0
++ET_ADD_AS_NEUTRAL			= 0
+ ET_CHANGE_FRIEND_TO_ENEMY	= 0
+ ET_CHANGE_ENEMY_TO_FRIEND	= 0
+ ET_SELECT_FRIEND			= 0
+@@ -301,6 +317,7 @@
+ "g_pPlayerButton",
+ "g_pAddEnemyButton",
+ "g_pAddFriendButton",
++"g_pAddNeutralButton",
+ "g_pFriendMenu",
+ "g_pEnemyMenu",
+ "g_pFriendWindow",
+@@ -355,6 +372,7 @@
+ g_kFriendList = []
+ g_kEnemyList = []
+ g_kFighterList = []
++g_iFighterSerial = 0		# monotonic, so no two fighters ever share a name
+ g_pOldFocus = None
+ g_bAddedUIHandlers = 0
+ g_pSet = None
+@@ -374,6 +392,7 @@
+ g_pPlayerButton = None
+ g_pAddEnemyButton = None
+ g_pAddFriendButton = None
++g_pAddNeutralButton = None
+ g_pFriendMenu = None
+ g_pEnemyMenu = None
+ g_pFriendWindow = None
+@@ -636,6 +655,19 @@
+ 	except:
+ 		pass
+ 
++def FighterLabel(sType):
++	# The name on a launch button: the fighter plugin's Label ("Mini Sphere")
++	# instead of its file name; the file name if that fails.
++	import sys
++	try:
++		sPath = "Custom.Bedrock.Ships." + sType
++		pPlugin = __import__(sPath, {}, {}, ["Label"])
++		if not hasattr(pPlugin, "Label"):
++			pPlugin = sys.modules[sPath]
++		return str(pPlugin.Label)
++	except:
++		return str(sType)
++
+ def SetupFighter1(pFighterType, pFighterQuantity):
+ 
+ 	global pXOMenu
+@@ -656,7 +688,7 @@
+ 	pSpawnShip1.SetEventType(ET_FIGHTER1)
+ 	pSpawnShip1.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton1 = App.STButton_Create(label, pSpawnShip1)
+ 	pFighterButton1.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton1.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -684,7 +716,7 @@
+ 	pSpawnShip2.SetEventType(ET_FIGHTER2)
+ 	pSpawnShip2.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton2 = App.STButton_Create(label, pSpawnShip2)
+ 	pFighterButton2.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton2.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -712,7 +744,7 @@
+ 	pSpawnShip3.SetEventType(ET_FIGHTER3)
+ 	pSpawnShip3.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton3 = App.STButton_Create(label, pSpawnShip3)
+ 	pFighterButton3.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton3.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -740,7 +772,7 @@
+ 	pSpawnShip4.SetEventType(ET_FIGHTER4)
+ 	pSpawnShip4.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton4 = App.STButton_Create(label, pSpawnShip4)
+ 	pFighterButton4.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton4.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -768,7 +800,7 @@
+ 	pSpawnShip5.SetEventType(ET_FIGHTER5)
+ 	pSpawnShip5.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton5 = App.STButton_Create(label, pSpawnShip5)
+ 	pFighterButton5.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton5.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -796,7 +828,7 @@
+ 	pSpawnShip6.SetEventType(ET_FIGHTER6)
+ 	pSpawnShip6.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton6 = App.STButton_Create(label, pSpawnShip6)
+ 	pFighterButton6.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton6.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -824,7 +856,7 @@
+ 	pSpawnShip7.SetEventType(ET_FIGHTER7)
+ 	pSpawnShip7.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton7 = App.STButton_Create(label, pSpawnShip7)
+ 	pFighterButton7.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton7.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -852,7 +884,7 @@
+ 	pSpawnShip8.SetEventType(ET_FIGHTER8)
+ 	pSpawnShip8.SetDestination(pXOMenu)
+ 
+-	label = "Launch " + pFighterType + " (" + str(pFighterQuantity)+")"
++	label = "Launch " + FighterLabel(pFighterType) + " (" + str(pFighterQuantity)+")"
+ 	pFighterButton8 = App.STButton_Create(label, pSpawnShip8)
+ 	pFighterButton8.SetNormalColor(App.g_kSTMenu2NormalBase)
+ 	pFighterButton8.SetHighlightedColor(App.g_kSTMenu2HighlightedBase)
+@@ -860,6 +892,53 @@
+ 	pFighterButton8.SetColorBasedOnFlags()
+ 	pXOMenu.AddChild(pFighterButton8)
+ 
++def LaunchPointLocation(pCarrier, iSlot, iNumber, fFighterRadius):
++	# Optional launch points for a carrier (2026-09-13).
++	# FighterLaunchPoints in the carrier's Bedrock plugin is a tuple of (x, y, z)
++	# offsets in the carrier's own frame - x right, y forward, z up, hardpoint
++	# units - one per fighter slot; slots past the end use the last point.  Each
++	# further fighter from the same launcher sits 3 fighter radii further out
++	# along that point's direction.  None when the carrier has no launch points,
++	# so the stock placement stands.
++	import sys
++	import string
++	try:
++		sType = string.split(pCarrier.GetScript(), ".")[-1]
++		sPath = "Custom.Bedrock.Ships." + sType
++		pPlugin = __import__(sPath, {}, {}, ["ShipName"])
++		if not hasattr(pPlugin, "ShipName"):
++			pPlugin = sys.modules[sPath]
++		if not hasattr(pPlugin, "FighterLaunchPoints"):
++			return None
++		lPoints = pPlugin.FighterLaunchPoints
++		iIndex = iSlot - 1
++		if iIndex >= len(lPoints):
++			iIndex = len(lPoints) - 1
++		if iIndex < 0:
++			return None
++		fX = float(lPoints[iIndex][0])
++		fY = float(lPoints[iIndex][1])
++		fZ = float(lPoints[iIndex][2])
++	except:
++		return None
++	fLength = pow(fX * fX + fY * fY + fZ * fZ, 0.5)
++	if fLength > 0.001:
++		fOut = 1.0 + (fFighterRadius * 3.0 * (iNumber - 1)) / fLength
++		fX = fX * fOut
++		fY = fY * fOut
++		fZ = fZ * fOut
++	kLocation = pCarrier.GetWorldLocation()
++	kRight = pCarrier.GetWorldRightTG()
++	kForward = pCarrier.GetWorldForwardTG()
++	kUp = pCarrier.GetWorldUpTG()
++	kRight.Scale(fX)
++	kForward.Scale(fY)
++	kUp.Scale(fZ)
++	kLocation.Add(kRight)
++	kLocation.Add(kForward)
++	kLocation.Add(kUp)
++	return kLocation
++
+ def SpawnFighter1(TGObject = None, pEvent = None):
+ 
+ 	import loadspacehelper
+@@ -899,6 +978,9 @@
+ 	kOffsetZ.Scale((pfRadius * FighterNumber1 * 3) - (pRadius / 2))
+ 	kLocation.Subtract( kOffsetX )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 1, FighterNumber1, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -949,6 +1031,9 @@
+ 	kOffsetZ.Scale((pfRadius * FighterNumber2 * 3) - (pRadius / 2))
+ 	kLocation.Add( kOffsetX )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 2, FighterNumber2, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1002,6 +1087,9 @@
+ 	kLocation.Subtract( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 3, FighterNumber3, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1055,6 +1143,9 @@
+ 	kLocation.Add( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 4, FighterNumber4, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1108,6 +1199,9 @@
+ 	kLocation.Subtract( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 5, FighterNumber5, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1161,6 +1255,9 @@
+ 	kLocation.Add( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 6, FighterNumber6, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1214,6 +1311,9 @@
+ 	kLocation.Subtract( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 7, FighterNumber7, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1267,6 +1367,9 @@
+ 	kLocation.Add( kOffsetX )
+ 	kLocation.Subtract( kOffsetY )
+ 	kLocation.Add( kOffsetZ )
++	kLaunchPoint = LaunchPointLocation(pPlayer, 8, FighterNumber8, pfRadius)
++	if kLaunchPoint != None:
++		kLocation = kLaunchPoint
+ 	pShip1.SetTranslate(kLocation)
+ 	
+ 	g_kFighterList.append(pShip1)
+@@ -1280,9 +1383,17 @@
+ 
+ def ClearFighters():
+ 	global g_kFighterList
++	global g_kShips
+ 
+ 	for i in range(len(g_kFighterList)):
+ 		j = g_kFighterList[i]
++		# Deregister BEFORE deleting: SetDeleteMe raises ET_OBJECT_DESTROYED,
++		# and a still-registered enemy fighter would decrement g_iNumEnemies
++		# during teardown and trip a spurious win sequence.
++		try:
++			del g_kShips[j.GetObjID()]
++		except:
++			pass
+ 		j.SetDeleteMe(1)
+ 
+ 	g_kFighterList = []
+@@ -1431,6 +1542,7 @@
+ 	global g_pPlayerButton
+ 	global g_pAddEnemyButton
+ 	global g_pAddFriendButton
++	global g_pAddNeutralButton
+ 	global g_pFriendMenu
+ 	global g_pEnemyMenu
+ 	global g_pFriendWindow
+@@ -1454,6 +1566,7 @@
+ 	g_pPlayerButton = None
+ 	g_pAddEnemyButton = None
+ 	g_pAddFriendButton = None
++	g_pAddNeutralButton = None
+ 	g_pFriendMenu = None
+ 	g_pEnemyMenu = None
+ 	g_pFriendWindow = None
+@@ -1507,7 +1620,7 @@
+ 	global g_iSelectedShipType, g_iSelectedEnemyShip, g_iSelectedFriendlyShip, g_iCurrentAILevel, g_iSelectedAILevel
+ 	global g_kShips, g_kFriendList, g_kEnemyList, g_pOldFocus, g_bAddedUIHandlers, g_pSet, g_pPane, g_pPlayerPane
+ 	global g_pShipsPane, g_pShipsIcon, g_pShipsIconPane, g_pPlayerIcon, g_pPlayerIconPane, g_pShipsText, g_pShipsTextWindow
+-	global g_pPlayerText, g_pPlayerTextWindow, g_pAIMenu, g_pShipsButton, g_pPlayerButton, g_pAddEnemyButton, g_pAddFriendButton
++	global g_pPlayerText, g_pPlayerTextWindow, g_pAIMenu, g_pShipsButton, g_pPlayerButton, g_pAddEnemyButton, g_pAddFriendButton, g_pAddNeutralButton
+ 	global g_pFriendMenu, g_pEnemyMenu, g_pFriendWindow, g_pEnemyWindow, g_pFriendToEnemyButton, g_pEnemyToFriendButton, g_pDeleteButton
+ 	global g_pStartButton, g_pBridge, g_pHelm, g_pXO, g_pEng, g_pSci, g_pXOMenu, g_pTact
+ 	global g_bDialogUp
+@@ -1562,6 +1675,7 @@
+ 	g_pPlayerButton = None
+ 	g_pAddEnemyButton = None
+ 	g_pAddFriendButton = None
++	g_pAddNeutralButton = None
+ 	g_pFriendMenu = None
+ 	g_pEnemyMenu = None
+ 	g_pFriendWindow = None
+@@ -1604,6 +1718,7 @@
+ 	global ET_SELECT_AI
+ 	global ET_ADD_AS_FRIEND
+ 	global ET_ADD_AS_ENEMY
++	global ET_ADD_AS_NEUTRAL
+ 	global ET_CHANGE_FRIEND_TO_ENEMY
+ 	global ET_CHANGE_ENEMY_TO_FRIEND
+ 	global ET_SELECT_FRIEND
+@@ -1625,6 +1740,7 @@
+ 	ET_SELECT_AI				= App.Mission_GetNextEventType()
+ 	ET_ADD_AS_FRIEND			= App.Mission_GetNextEventType()
+ 	ET_ADD_AS_ENEMY				= App.Mission_GetNextEventType()
++	ET_ADD_AS_NEUTRAL			= App.Mission_GetNextEventType()
+ 	ET_CHANGE_FRIEND_TO_ENEMY	= App.Mission_GetNextEventType()
+ 	ET_CHANGE_ENEMY_TO_FRIEND	= App.Mission_GetNextEventType()
+ 	ET_SELECT_FRIEND			= App.Mission_GetNextEventType()
+@@ -1768,6 +1884,7 @@
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_SELECT_AI, __name__ + ".SelectAI")
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_ADD_AS_FRIEND, __name__ + ".AddShipAsFriend")
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_ADD_AS_ENEMY, __name__ + ".AddShipAsEnemy")
++		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_ADD_AS_NEUTRAL, __name__ + ".AddShipAsNeutral")
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_CHANGE_FRIEND_TO_ENEMY, __name__ + ".ChangeFriendToEnemy")
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_CHANGE_ENEMY_TO_FRIEND, __name__ + ".ChangeEnemyToFriend")
+ 		g_pXOMenu.AddPythonFuncHandlerForInstance(ET_SELECT_FRIEND, __name__ + ".SelectFriend")
+@@ -1898,6 +2015,17 @@
+ 	g_pAddEnemyButton.SetColorBasedOnFlags()
+ 	g_pShipsPane.AddChild(g_pAddEnemyButton, ADD_ENEMY_BUTTON_X_POS, ADD_ENEMY_BUTTON_Y_POS)
+ 
++	# Third allegiance: neutral - spawns in neither mission group, carries
++	# no attack AI. Nobody targets it, it targets nobody. (2026-08-31)
++	global g_pAddNeutralButton
++	g_pAddNeutralButton = CreateBridgeMenuButton(App.TGString("Add As Neutral Ship"), ET_ADD_AS_NEUTRAL, 0, g_pXOMenu, ADD_NEUTRAL_BUTTON_WIDTH, ADD_NEUTRAL_BUTTON_HEIGHT)
++	g_pAddNeutralButton.SetDisabled()
++	g_pAddNeutralButton.SetNormalColor(App.g_kMainMenuButtonColor)
++	g_pAddNeutralButton.SetHighlightedColor(App.g_kMainMenuButtonHighlightedColor)
++	g_pAddNeutralButton.SetSelectedColor(App.g_kMainMenuButtonSelectedColor)
++	g_pAddNeutralButton.SetColorBasedOnFlags()
++	g_pShipsPane.AddChild(g_pAddNeutralButton, ADD_NEUTRAL_BUTTON_X_POS, ADD_NEUTRAL_BUTTON_Y_POS)
++
+ 	GenerateFriendMenu()
+ 
+ 	GenerateEnemyMenu()
+@@ -2033,12 +2161,23 @@
+ #	pGlass.AddPythonFuncHandlerForInstance(App.ET_MOUSE, __name__ + ".MouseIgnoreHandler")
+ 	pMainPane.AddChild(pGlass, 0, 0)
+ 
+-	# The player starts out as a Galaxy Class ship
++	# The player starts out in OrionConfig.QuickBattleShip (2026-10-24: this
++	# used to force a Galaxy here, silently overriding the config value the
++	# game had just loaded into g_sPlayerType).  Galaxy if it is not found.
+ 	if (bPreservePane == 0):
++		iStartType = GALAXY
++		try:
++			import OrionConfig
++			sWant = OrionConfig.QuickBattleShip
++			for iKey in g_dFriendlyShipTypeToDetails.keys():
++				if g_dFriendlyShipTypeToDetails[iKey][0] == sWant:
++					iStartType = iKey
++		except:
++			iStartType = GALAXY
+ 		pEvent = App.TGIntEvent_Create()
+ 		pEvent.SetEventType(ET_SELECT_PLAYER_SHIP_TYPE)
+ 		pEvent.SetDestination(g_pXOMenu)
+-		pEvent.SetInt(GALAXY)
++		pEvent.SetInt(iStartType)
+ 		SelectPlayerShip(None, pEvent)
+ 
+ 	# Restore the font
+@@ -2243,6 +2382,18 @@
+ #
+ #	Return:	none
+ ###############################################################################
++def ShipListFont(bOn):
++	# bOn: switch to the compact ship-list font; 0: back to the dialog font.
++	import MainMenu.mainmenu
++	try:
++		if bOn:
++			App.g_kFontManager.SetDefaultFont(MainMenu.mainmenu.g_pcSmallFont, SHIP_LIST_FONT_SIZE[MainMenu.mainmenu.g_iRes])
++		else:
++			App.g_kFontManager.SetDefaultFont(MainMenu.mainmenu.g_pcSmallFont, MainMenu.mainmenu.g_kSmallFontSize[MainMenu.mainmenu.g_iRes])
++	except:
++		pass
++
++
+ def GeneratePlayerShipMenu(iShipsUnlocked1, iShipsUnlocked2):
+ 	# Create menus for all the sorts of ships that are playable
+ 	global pPShipMenu
+@@ -2258,12 +2409,14 @@
+ 	global PRaceDict
+ 	PRaceDict = {}
+ 
++	ShipListFont(1)
+ 	import Custom.Bedrock.BedrockMain
+ 	Custom.Bedrock.BedrockMain.PlayerShip()
+ 
+ 	for Race in Custom.Bedrock.BedrockMain.RaceList:
+ 		RaceVar = "pP" + Race
+ 		PRaceDict[RaceVar].ForceUpdate(0)
++	ShipListFont(0)
+ 
+ 	return pStylizedWindow
+ 
+@@ -2294,12 +2447,14 @@
+ 	global RaceDict
+ 	RaceDict = {}
+ 
++	ShipListFont(1)
+ 	import Custom.Bedrock.BedrockMain
+ 	Custom.Bedrock.BedrockMain.Ship()
+ 
+ 	for Race in Custom.Bedrock.BedrockMain.RaceList:
+ 		RaceVar = "p" + Race
+ 		RaceDict[RaceVar].ForceUpdate(0)
++	ShipListFont(0)
+ 
+ 	pShipMenu.Resize(pShipMenu.GetWidth(), pShipMenu.GetTotalHeightOfChildren())
+ 	pStylizedWindow.Layout()
+@@ -2357,6 +2512,9 @@
+ 	pStylizedWindow.AddChild(pChangeRegionMenu)
+ 	g_pPlayerPane.AddChild(pStylizedWindow, REGION_MENU_X_POS, REGION_MENU_Y_POS)
+ 
++	# compact list font for the systems/planets list too (2026-10-24)
++	ShipListFont(1)
++
+ 	####import Bedrock System Files And Add To List###
+ 	import nt
+ 	import string
+@@ -2381,6 +2539,7 @@
+ 			pChangeRegionMenu.AddChild(BuildRegionSubmenu2(i, PlanetNum, SysLabel))
+ 		else:
+ 			pChangeRegionMenu.AddChild(CreateRegionMenuButton(SysLabel, ET_SELECT_REGION_TYPE, i, g_pXOMenu))
++	ShipListFont(0)
+ 	
+ 	pChangeRegionMenu.Resize(pChangeRegionMenu.GetWidth(), pChangeRegionMenu.GetTotalHeightOfChildren())
+ 	pStylizedWindow.Layout()
+@@ -2520,6 +2679,19 @@
+ #
+ #	Return:	none
+ ###############################################################################
++def AddShipAsNeutral(pObject, pEvent):
++	# Like AddShipAsFriend, but tagged "Neutral" with NO attack AI (None) -
++	# the AI-assignment loop skips None, and GenerateShips keeps neutrals
++	# out of both mission groups.
++	lShipData = g_dFriendlyShipTypeToDetails[g_iSelectedShipType][:]
++	lShipData[3] = None
++	lShipData[4] = "Neutral"
++	lShipData.append(g_iSelectedAILevel)
++	g_kFriendList.append(lShipData)
++	RebuildFriendMenu()
++	pObject.CallNextHandler(pEvent)
++
++
+ def RebuildFriendMenu():
+ 	g_pFriendMenu.KillChildren()
+ 
+@@ -2529,6 +2701,8 @@
+ 			fShipBedrock = __import__("Custom.Bedrock.Ships." + fShip)
+ 			path = ("Custom.Bedrock.Ships." + fShip)
+ 			fLabel = fShipBedrock.Label
++			if g_kFriendList[iIndex][4] == "Neutral":
++				fLabel = "[N] " + fLabel
+ 			g_pFriendMenu.AddChild(CreateBridgeMenuButton2(fLabel, ET_SELECT_FRIEND, iIndex, g_pXOMenu), 0.0, 0.0, 0)
+ 		except:
+ 			pass
+@@ -2595,6 +2769,8 @@
+ 			eShipBedrock = __import__("Custom.Bedrock.Ships." + eShip)
+ 			path = ("Custom.Bedrock.Ships." + eShip)
+ 			eLabel = eShipBedrock.Label
++			if g_kEnemyList[iIndex][4] == "Neutral":
++				eLabel = "[N] " + eLabel
+ 			g_pEnemyMenu.AddChild(CreateBridgeMenuButton2(eLabel, ET_SELECT_ENEMY, iIndex, g_pXOMenu))
+ 		except:
+ 			pass
+@@ -2692,6 +2868,7 @@
+ 	# Enable and disable the appropriate buttons
+ 	g_pAddEnemyButton.SetDisabled()
+ 	g_pAddFriendButton.SetDisabled()
++	g_pAddNeutralButton.SetDisabled()
+ 	g_pAIMenu.SetNotVisible()
+ 	g_pFriendToEnemyButton.SetEnabled()
+ 	g_pEnemyToFriendButton.SetDisabled()
+@@ -2754,6 +2931,7 @@
+ 	# Enable and disable the appropriate buttons
+ 	g_pAddEnemyButton.SetDisabled()
+ 	g_pAddFriendButton.SetDisabled()
++	g_pAddNeutralButton.SetDisabled()
+ 	g_pAIMenu.SetNotVisible()
+ 	g_pFriendToEnemyButton.SetDisabled()
+ 	g_pEnemyToFriendButton.SetEnabled()
+@@ -2936,6 +3114,7 @@
+ 	# Disable all buttons 'til something from the menu's selected
+ 	g_pAddEnemyButton.SetDisabled()
+ 	g_pAddFriendButton.SetDisabled()
++	g_pAddNeutralButton.SetDisabled()
+ 	g_pAIMenu.SetNotVisible()
+ 	g_pFriendToEnemyButton.SetDisabled()
+ 	g_pEnemyToFriendButton.SetDisabled()
+@@ -3056,6 +3235,7 @@
+ 	# shouldn't be operable at the moment
+ 	g_pAddEnemyButton.SetEnabled()
+ 	g_pAddFriendButton.SetEnabled()
++	g_pAddNeutralButton.SetEnabled()
+ 	g_pAIMenu.SetVisible()
+ 	g_pFriendToEnemyButton.SetDisabled()
+ 	g_pEnemyToFriendButton.SetDisabled()
+@@ -3231,6 +3411,8 @@
+ 		if sWhichSide == "Friendly":
+ 			g_iNumFriends = g_iNumFriends + 1
+ 			sShipName = pLabel + "-" + str(iNumShips)
++		elif sWhichSide == "Neutral":
++			sShipName = pLabel + "-" + str(iNumShips)
+ 		else:
+ 			g_iNumEnemies = g_iNumEnemies + 1
+ 			sShipName = pLabel + "-" + str(iNumShips)
+@@ -3238,6 +3420,8 @@
+ 		#Give the ship an affiliation
+ 		if sWhichSide == "Enemy":
+ 			pEnemies.AddName(sShipName)
++		elif sWhichSide == "Neutral":
++			pass	# neither group: invisible to every attack AI
+ 		else:
+ 			pFriendlies.AddName(sShipName)
+ 
+@@ -3301,76 +3485,68 @@
+ 		global g_kShips
+ 		g_kShips[pShip.GetObjID()] = (sWhichAI, sDestroyedMessage, sWhichSide, sAINumber)
+ 
+-		try:
+-			pFighterType = pBedrock.FighterType1
+-			pFighterQuantity = pBedrock.FighterQuantity1
+-			pFighterSlot = 1
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType2
+-			pFighterQuantity = pBedrock.FighterQuantity2
+-			pFighterSlot = 2
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType3
+-			pFighterQuantity = pBedrock.FighterQuantity3
+-			pFighterSlot = 3
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType4
+-			pFighterQuantity = pBedrock.FighterQuantity4
+-			pFighterSlot = 4
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType5
+-			pFighterQuantity = pBedrock.FighterQuantity5
+-			pFighterSlot = 5
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType6
+-			pFighterQuantity = pBedrock.FighterQuantity6
+-			pFighterSlot = 6
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType7
+-			pFighterQuantity = pBedrock.FighterQuantity7
+-			pFighterSlot = 7
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
+-		try:
+-			pFighterType = pBedrock.FighterType8
+-			pFighterQuantity = pBedrock.FighterQuantity8
+-			pFighterSlot = 8
+-			SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide)
+-		except:
+-			pass
++		if sWhichSide == "Neutral":
++			continue
++		LaunchAIWing(pBedrock, pShip, sWhichSide, sAINumber)
++
++
++def WingLog(sText):
++	# sys.stdout.write is parseable by both Python 1.5.2 (the game) and
++	# Python 3 (offline syntax checks).
++	import sys
++	sys.stdout.write("QB wing: " + sText + "\n")
++
++
++def LaunchAIWing(pBedrock, pShip, sWhichSide, sAINumber):
++	# An AI-flown carrier launches its complement here; the player's own
++	# complement is wired to XO menu buttons instead (CheckFighters).
++	#
++	# The eight stock try/except blocks this replaces guarded the ABSENCE of
++	# a FighterType slot - but they wrapped the spawn call too, so a genuine
++	# failure (missing ship script, bad plugin, full set) was swallowed with
++	# exactly the same silence as "this hull carries no fighters".  That is
++	# indistinguishable from the wing feature not existing at all.  Absence
++	# is still silent; failure now says so on the console.
++	iSlot = 1
++	while iSlot <= 8:
++		sType = None
++		iQty = 0
++		if hasattr(pBedrock, "FighterType" + str(iSlot)):
++			if hasattr(pBedrock, "FighterQuantity" + str(iSlot)):
++				sType = getattr(pBedrock, "FighterType" + str(iSlot))
++				iQty = getattr(pBedrock, "FighterQuantity" + str(iSlot))
++		# AIFighterCap in the plugin limits what an AI-flown carrier launches per slot
++		# (2026-09-28); the player's own complement is not capped.
++		if sType and hasattr(pBedrock, "AIFighterCap"):
++			try:
++				if iQty > int(pBedrock.AIFighterCap):
++					iQty = int(pBedrock.AIFighterCap)
++			except:
++				pass
++		if sType and (iQty > 0):
++			try:
++				SpawnAIFighter(sType, iQty, iSlot, pShip, sWhichSide, sAINumber)
++			except:
++				import sys
++				WingLog(pShip.GetName() + " slot " + str(iSlot) + " (" +
++					str(sType) + " x" + str(iQty) + ") FAILED: " +
++					str(sys.exc_type) + ": " + str(sys.exc_value))
++		iSlot = iSlot + 1
+ 
+ 
+-def SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide):
++def SpawnAIFighter(pFighterType, pFighterQuantity, pFighterSlot, pShip, sWhichSide, sAINumber = 0):
+ 
+ 	import loadspacehelper
+ 	import App
+ 
++	global g_iFighterSerial
++
+ 	FighterNumber1 = 1
+ 
+ 	pShip1Choice = pFighterType
+ 	path = "Custom.Bedrock.Ships." + pFighterType
+ 	Type = __import__(path)
+ 	Type2 = Type.Label
+-	RandNum = (App.g_kSystemWrapper.GetRandomNumber(100))
+ 
+ 	if sWhichSide == "Enemy":
+ 		AIType = Type.EAI
+@@ -3383,7 +3559,8 @@
+ 
+ 	while pFighterQuantity > 0:
+ 
+-		Name = str(Type2) + " " + str(RandNum) + str(FighterNumber1)
++		g_iFighterSerial = g_iFighterSerial + 1
++		Name = str(Type2) + " " + str(g_iFighterSerial)
+ 		pShip1 = loadspacehelper.CreateShip(str(pShip1Choice), g_pSet, Name, "")
+ 		i = pShip1.GetName()
+ 		pRadius = pShip.GetRadius()
+@@ -3451,6 +3628,9 @@
+ 			kLocation.Add( kOffsetX )
+ 			kLocation.Subtract( kOffsetY )
+ 			kLocation.Add( kOffsetZ )
++		kLaunchPoint = LaunchPointLocation(pShip, pFighterSlot, FighterNumber1, pfRadius)
++		if kLaunchPoint != None:
++			kLocation = kLaunchPoint
+ 		pShip1.SetTranslate(kLocation)
+ 	
+ 		#AIList.append(i)
+@@ -3460,6 +3640,22 @@
+ 			pEnemies.AddName("This ship probably wont exist")
+ 		pAIModule = __import__(AIType)
+ 		pShip1.SetAI(pAIModule.CreateAI(pShip1), 0, 0)
++		# Register the fighter the same way GenerateShips registers a hull.
++		# Without this an enemy carrier's screen was invisible to the win
++		# test: kill the carrier and the sim declared victory while six
++		# fighters were still shooting.  The empty destroyed-message keeps
++		# them silent - ShipDestroyed skips the say-line for it.
++		# AI is None, not "": StartSimulation2 loops g_kShips and calls
++		# __import__(pcWhichAI) for every entry whose AI is not None.  These
++		# fighters already have their AI (set two lines up), so None is the
++		# "skip me" contract - the same one the Neutral side uses.  An empty
++		# string passes that guard and dies on __import__("").
++		# sAINumber is the carrier's difficulty, so the loop's
++		# g_iCurrentAILevel assignment stays meaningful.
++		global g_kShips, g_iNumEnemies
++		g_kShips[pShip1.GetObjID()] = (None, "", sWhichSide, sAINumber)
++		if sWhichSide == "Enemy":
++			g_iNumEnemies = g_iNumEnemies + 1
+ 		FighterNumber1 = FighterNumber1 + 1
+ 		pShip1.AlignToVectors(pShip.GetWorldForwardTG(), pShip.GetWorldUpTG())
+ 		pFighterQuantity = pFighterQuantity - 1
+@@ -3544,8 +3740,15 @@
+ 		pProximityManager.UpdateObject (pPlayer)
+ 
+ 	# Remove plasmas.
++	# Directive Fleet: ships in this list carry deliberately-designed ammo types 3 and 4,
++	# so they are exempt from the blanket "unload everything past quantums" rule.
++	lKeepAllAmmo = ["DS9Wings", "DanubeRGod", "TNGFedSurak", "ZZSehlat"]
++	bKeepAllAmmo = 0
++	for sKeeper in lKeepAllAmmo:
++		if (g_sPlayerType == sKeeper):
++			bKeepAllAmmo = 1
+ 	pTorpSys = pPlayer.GetTorpedoSystem()
+-	if(pTorpSys):
++	if(pTorpSys and not bKeepAllAmmo):
+ 		# Forcibly unload all torps past quantums (Type 2)
+ 		iNumTypes = pTorpSys.GetNumAmmoTypes()
+ 		for iType in range(iNumTypes):
+@@ -4046,11 +4249,12 @@
+ 			if (sWhichSide == "Enemy"):
+ 				g_iNumEnemies = g_iNumEnemies - 1
+ 
+-			pLine1 = App.CharacterAction_Create(g_pTact, App.CharacterAction.AT_SAY_LINE, sDestroyedMessage, "Captain", 1, g_pMissionDatabase)
++			if sDestroyedMessage:
++				pLine1 = App.CharacterAction_Create(g_pTact, App.CharacterAction.AT_SAY_LINE, sDestroyedMessage, "Captain", 1, g_pMissionDatabase)
+ 
+-			pSequence = App.TGSequence_Create()
+-			pSequence.AddAction(pLine1)
+-			pSequence.Play()
++				pSequence = App.TGSequence_Create()
++				pSequence.AddAction(pLine1)
++				pSequence.Play()
+ 
+ #			debug("Ship destroyed handler " + str (g_iNumEnemies) + ", " + str (bInSimulation) + ", " + str (bWonOrLost))
+ 			# If all enemies are gone, and we're in the simulation, then say we're ending it.

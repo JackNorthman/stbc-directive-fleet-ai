@@ -1,0 +1,31 @@
+--- a/scripts/AI/Compound/BasicAttack.py
++++ b/scripts/AI/Compound/BasicAttack.py
+@@ -34,6 +34,11 @@
+ 	# use the CloakAttack AI.
+ 	if dKeywords["UseCloaking"]  and  pShip.GetCloakingSubsystem():
+ 		sAttackModule = "CloakAttackWrapper"
++		# ...unless the hull's own attack AI flies the cloak itself and says so
++		# with HANDLES_CLOAK = 1 (Directive Fleet AI pack, 2026-09-13).
++		sOwnModule = OwnCloakModule(pShip)
++		if sOwnModule:
++			sAttackModule = sOwnModule
+ 	else:
+ 		# Check what type of ship this is.  Certain types of ships
+ 		# have different basic attack AI's.
+@@ -46,6 +51,16 @@
+ 	pModule = __import__(sAttackModule)
+ 	return apply(pModule.CreateAI, (pShip,) + lpTargets, dKeywords)
+ 
++def OwnCloakModule(pShip):
++	# The hull's AIString when that module sets HANDLES_CLOAK, else None.
++	try:
++		sModule = pShip.GetShipProperty().GetAIString()
++		if getattr(__import__(sModule), "HANDLES_CLOAK", 0):
++			return sModule
++	except:
++		pass
++	return None
++
+ def SetFlagsFromDifficulty(sKeyPrefix, dKeywords):
+ 	# Check if there are any keywords that match the Game Difficulty Prefix..
+ 	# If none are defined, just use the default keys.  If any are defined,
